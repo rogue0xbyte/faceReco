@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta content="width=device-width, initial-scale=1" name="viewport"/>
+    <link rel="stylesheet" href="{{url_for('static', filename='fonts/stylesheet.css')}}">
+    <link rel="stylesheet" href="{{url_for('static', filename='styles.css')}}">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@100..900&display=swap" rel="stylesheet">
+    <title>FaceBot</title>
+    <style>
+        * {
+            font-family: Aeonik;
+        }
+    </style>
+</head>
+<body>
+<div class="header">
+    <img src="{{url_for('static', filename='icon.png')}}"/>
+    ROBOCOP Face Bot &nbsp; <span style='font-family: "Noto Sans Arabic", sans-serif;'> (روبوت شرطة)</span>
+</div>
+<div class="main">
+    <div style="display: none;z-index: 999;color: black;" id="loader">
+      <span id="proc"></span>
+    </div>
+    <center>
+        <form class="form-inline" action="/stop" method="post" enctype="multipart/form-data">
+            <input type="submit" class="btn btn-danger btn-md btn-block" value="Stop">
+        </form>
+    </center>
+    <center>
+        <form class="form-inline" action="/start" method="post" enctype="multipart/form-data">
+            <input type="submit" class="btn btn-success btn-md btn-block" value="Start">
+        </form>
+    </center>
+    <br>
+</div>
+<div class="col-lg-offset-2 col-lg-8">
+    <img id="video" class="stream" width="100%"/>
+    <video id="cam" class="camstream" autoplay></video>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+<script>
+    const socket = io('http://{{api.get("host")}}:{{api.get("port")}}');
+
+const video = document.getElementById('video');
+const cam = document.getElementById('cam');
+let frameInterval;
+let frameBuffer = [];
+let isPlaying = false;
+let lastBlobUrl;
+
+// Use getUserMedia to access the webcam
+navigator.mediaDevices.getUserMedia({ video: true })
+    .then((stream) => {
+        cam.srcObject = stream;
+        cam.play();
+
+        // Send frames to server
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        frameInterval = setInterval(() => {
+            canvas.width = cam.videoWidth;
+            canvas.height = cam.videoHeight;
+            ctx.drawImage(cam, 0, 0, canvas.width, canvas.height);
+            const dataURI = canvas.toDataURL('image/jpeg', 0.5); // Compress image
+            socket.emit('image', dataURI);
+        }, 1000 / 20); // Adjusted frame rate to 20 fps
+    })
+    .catch((err) => {
+        console.error('Error accessing webcam:', err);
+    });
+
+socket.on('response', function(response) {
+    // Create a new Blob object from the received response
+    const blob = new Blob([response]);
+
+    // Add the Blob URL to the frame buffer
+    const blobUrl = URL.createObjectURL(blob);
+    frameBuffer.push(blobUrl);
+
+    // Start playing if not already
+    if (!isPlaying) {
+        playFrames();
+    }
+});
+
+function playFrames() {
+    if (frameBuffer.length > 0) {
+        // Get the next frame URL from the buffer
+        const nextFrameUrl = frameBuffer.shift();
+
+        // Set the video source to the new frame
+        video.src = nextFrameUrl;
+
+        // Revoke the old Blob URL to free up memory
+        if (lastBlobUrl) {
+            URL.revokeObjectURL(lastBlobUrl);
+        }
+        lastBlobUrl = nextFrameUrl;
+
+        // Use requestAnimationFrame to display the next frame
+        requestAnimationFrame(playFrames);
+    } else {
+        // No frames in the buffer, stop playing
+        isPlaying = false;
+    }
+}
+
+function stopStreamAndReleaseCamera() {
+    // Stop sending frames to the server
+    clearInterval(frameInterval);
+
+    // Stop the socket connection
+    socket.disconnect();
+
+    // Stop the camera stream
+    const tracks = cam.srcObject.getTracks();
+    tracks.forEach(track => track.stop());
+    
+    // Clear the frame buffer
+    frameBuffer = [];
+    
+    // Revoke the last Blob URL
+    if (lastBlobUrl) {
+        URL.revokeObjectURL(lastBlobUrl);
+    }
+}
+
+    // const socket = io('http://{{api.get("host")}}:{{api.get("port")}}');
+
+    // const video = document.getElementById('video');
+    // const cam = document.getElementById('cam');
+    // let frameInterval;
+
+    // // Use getUserMedia to access the webcam
+    // navigator.mediaDevices.getUserMedia({ video: true })
+    //     .then((stream) => {
+    //         cam.srcObject = stream;
+    //         cam.play();
+
+    //         // Send frames to server
+    //         const canvas = document.createElement('canvas');
+    //         const ctx = canvas.getContext('2d');
+    //         frameInterval = setInterval(() => {
+    //             canvas.width = cam.videoWidth;
+    //             canvas.height = cam.videoHeight;
+    //             ctx.drawImage(cam, 0, 0, canvas.width, canvas.height);
+    //             const dataURI = canvas.toDataURL('image/jpeg');
+    //             socket.emit('image', dataURI);
+    //         }, 1000 / ); // Adjust frame rate here (currently set to 10 fps)
+    //     })
+    //     .catch((err) => {
+    //         console.error('Error accessing webcam:', err);
+    //     });
+
+    // socket.on('response', function(response) {
+    //     // Create a new Blob object from the received response
+    //     const blob = new Blob([response]);
+
+    //     // Create a URL for the Blob object
+    //     const blobUrl = URL.createObjectURL(blob);
+
+    //     // Set the URL as the source for the video element
+    //     video.src = blobUrl;
+    // });
+
+    // function stopStreamAndReleaseCamera() {
+    //     // Stop sending frames to the server
+    //     clearInterval(frameInterval);
+
+    //     // Stop the socket connection
+    //     socket.disconnect();
+
+    //     // Stop the camera stream
+    //     const tracks = cam.srcObject.getTracks();
+    //     tracks.forEach(track => track.stop());
+    // }
+</script>
+</body>
+</html>

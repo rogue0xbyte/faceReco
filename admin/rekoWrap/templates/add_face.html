@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta content="width=device-width, initial-scale=1" name="viewport"/>
+    <link rel="stylesheet" href="{{url_for('static', filename='fonts/stylesheet.css')}}">
+    <link rel="stylesheet" href="{{url_for('static', filename='styles.css')}}">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@100..900&display=swap" rel="stylesheet">
+    <title>FaceBot</title>
+    <style>
+        * {
+            font-family: Aeonik;
+        }
+
+        #loader {
+          position: fixed;
+          z-index: 999;
+          width: 100vw;
+          height: 100vh;
+          background-color: white;
+          top: 0;
+          left: 0;
+          justify-content: center;
+          align-content: center;
+          align-items: center;
+          text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div style="display: none;z-index: 999;color: black;" id="loader">
+      <span id="proc"></span>
+    </div>
+    <form class="form-inline" action="/collect_data" method="get" enctype="multipart/form-data" id="hiddenDataCollection">
+        <input type="hidden" name="name" value="{{name}}" />
+        <input type="hidden" name="sendToAPI" value="true" />
+    </form>
+
+    <div id="loader" onclick="document.getElementById('hiddenDataCollection').submit();document.getElementById('loader').style.display = 'flex';var typed = new Typed('#loader', { strings: ['recognizing your face.. this may take about 1 minute.. we will capture 100 frames with your face in it and store add it to our database..'], typeSpeed: 40, });">
+        <p>click anywhere to capture your face image from your camera.</p>
+    </div>
+</body>
+</html>

@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta content="width=device-width, initial-scale=1" name="viewport"/>
+    <link rel="stylesheet" href="{{url_for('static', filename='fonts/stylesheet.css')}}">
+    <link rel="stylesheet" href="{{url_for('static', filename='styles.css')}}">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@100..900&display=swap" rel="stylesheet">
+    <title>FaceBot</title>
+    <style>
+        * {
+            font-family: Aeonik;
+        }
+
+        #loader {
+          position: fixed;
+          z-index: 999;
+          width: 100vw;
+          height: 100vh;
+          background-color: white;
+          top: 0;
+          left: 0;
+          justify-content: center;
+          align-content: center;
+          align-items: center;
+          text-align: center;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/dist/face-api.min.js"></script>
+</head>
+<body>
+    <div style="display: none; z-index: 999; color: black;" id="loader">
+      <span id="proc"></span>
+    </div>
+
+    <video id="video" width="720" height="560" autoplay muted></video>
+
+    <form class="form-inline" action="/collect_data" method="post" enctype="multipart/form-data" id="hiddenDataCollection">
+        <input type="hidden" name="name" value="{{name}}" />
+        <input type="hidden" name="sendToAPI" value="true" />
+        <input type="hidden" id="imageData" name="imageData" value="" />
+    </form>
+
+    <div id="loader" onclick="startVideo();">
+        <p>Click anywhere to capture your face image from your camera.</p>
+    </div>
+
+    <script src="https://unpkg.com/typed.js@2.1.0/dist/typed.umd.js"></script>
+
+    <script>
+        async function startVideo() {
+            const video = document.getElementById('video');
+            const constraints = { video: {} };
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = stream;
+                await loadModels();
+            } catch (err) {
+                console.error("Error accessing the camera: ", err);
+            }
+        }
+
+        async function loadModels() {
+            await faceapi.nets.tinyFaceDetector.loadFromUri('/static/models');
+            await faceapi.nets.faceLandmark68Net.loadFromUri('/static/models');
+            await faceapi.nets.faceRecognitionNet.loadFromUri('/static/models');
+            await faceapi.nets.faceExpressionNet.loadFromUri('/static/models');
+            captureFace();
+        }
+
+        function captureFace() {
+            const video = document.getElementById('video');
+            const canvas = faceapi.createCanvasFromMedia(video);
+            document.body.append(canvas);
+            const displaySize = { width: video.width, height: video.height };
+            faceapi.matchDimensions(canvas, displaySize);
+
+            let count = 0;
+            const maxFrames = 100;
+            const interval = setInterval(async () => {
+                document.getElementById('loader').style.display = 'flex';
+                var typed = new Typed('#loader', { 
+                        strings: ['Recognizing your face.. This may take about 1 minute.. We will capture 100 frames with your face in it and store them in our database..'], 
+                        typeSpeed: 40,
+                    });
+                const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptors();
+                const resizedDetections = faceapi.resizeResults(detections, displaySize);
+                canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+                faceapi.draw.drawDetections(canvas, resizedDetections);
+
+                if (count < maxFrames) {
+                    const faceCanvas = document.createElement('canvas');
+                    faceCanvas.width = video.width;
+                    faceCanvas.height = video.height;
+                    faceCanvas.getContext('2d').drawImage(video, 0, 0, faceCanvas.width, faceCanvas.height);
+
+                    const imageData = faceCanvas.toDataURL('image/jpeg');
+                    console.log(detections.length,'faces detected & stored');
+                    document.getElementById('imageData').value += imageData + '|,|';
+                    count++;
+                }
+
+                if (count >= maxFrames) {
+                    clearInterval(interval);
+                    document.getElementById('hiddenDataCollection').submit();
+                }
+            }, 100);
+        }
+    </script>
+</body>
+</html>

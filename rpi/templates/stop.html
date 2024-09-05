@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+ <meta content="width=device-width, initial-scale=1" name="viewport"/>
+ <link rel="stylesheet" href="{{url_for('static', filename='fonts/stylesheet.css')}}">
+ <link rel="stylesheet" href="{{url_for('static', filename='styles.css')}}">
+ <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@100..900&display=swap" rel="stylesheet">
+ <title>FaceBot</title>
+<style>
+* {
+  font-family: Aeonik;
+}
+</style>
+  <body>
+    <div class="header">
+      <img src="{{url_for('static', filename='icon.png')}}"/>
+      ROBOCOP Face Bot &nbsp; <span style='font-family: "Noto Sans Arabic", sans-serif;'> (روبوت شرطة)</span>
+    </div>
+    <div class="main">
+         <center><form  class="form-inline" action = "/stop" method = "post" enctype="multipart/form-data">          
+          <input type = "submit" class="btn btn-danger btn-md btn-block" value="Stop">
+                       </form></center>
+                <center><form  class="form-inline" action = "/start" method = "post" enctype="multipart/form-data">          
+          <input type = "submit" class="btn btn-success btn-md btn-block" value="Start">
+             </form></center><br></div></div>
+        <h1 class="stream stopped-text">ROBOCOP is stopped.</h1>
+    </body>
+</html>

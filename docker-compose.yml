@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  api:
+    build: ./api_v2
+    ports:
+      - "8000:8000"
+
+  rpi:
+    build: ./rpi_v2
+    ports:
+      - "7000:7000"
+
+  facereco_backend:
+    build: ./admin/faceReco-backend
+    ports:
+      - "3001:3001"
+
+  facerecofe:
+    build: ./admin/facerecofe
+    ports:
+      - "5173:5173"
+    depends_on:
+      - facereco_backend

@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta content="width=device-width, initial-scale=1" name="viewport"/>
+    <link rel="stylesheet" href="{{url_for('static', filename='fonts/stylesheet.css')}}">
+    <link rel="stylesheet" href="{{url_for('static', filename='styles.css')}}">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@100..900&display=swap" rel="stylesheet">
+    <title>FaceBot</title>
+    <style>
+        * {
+            font-family: Aeonik;
+        }
+
+        .person-details-overlay {
+          position: absolute;
+          bottom: 10vh;
+          right: 50px;
+          margin-right: 10px;
+          margin-bottom: 10px;
+          background-color: rgba(255, 255, 255, 0.8);
+          padding: 20px;
+          box-shadow: -5px -5px 10px rgba(0, 0, 0, 0.3);
+          border-radius: 25px;
+        }
+
+        .person-details-overlay h2 {
+          margin-top: 0;
+        }
+
+        #no-people {
+            display: none;
+        }
+
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 999;
+            -moz-transform: scale(-1, 1);
+            -o-transform: scale(-1, 1);
+            -webkit-transform: scale(-1, 1);
+            transform: scale(-1, 1);
+        }
+
+        @media (max-width: 768px) {
+          .person-details-overlay {
+            position: absolute;
+            bottom: 0;
+            margin-bottom: 10px;
+            align-self: center;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 20px;
+            box-shadow: -5px -5px 10px rgba(0, 0, 0, 0.3);
+            border-radius: 25px;
+          }
+        }
+
+    </style>
+</head>
+<body>
+<div class="header">
+    <img src="{{url_for('static', filename='icon.png')}}"/>
+    ROBOCOP Face Bot &nbsp; <span style='font-family: "Noto Sans Arabic", sans-serif;'> (روبوت شرطة)</span>
+</div>
+<div class="main">
+    <div style="display: none;z-index: 999;color: black;" id="loader">
+      <span id="proc"></span>
+    </div>
+    <center>
+        <form class="form-inline" action="/stop" method="post" enctype="multipart/form-data">
+            <input type="submit" class="btn btn-danger btn-md btn-block" value="Stop">
+        </form>
+    </center>
+    <center>
+        <form class="form-inline" action="/start" method="post" enctype="multipart/form-data">
+            <input type="submit" class="btn btn-success btn-md btn-block" value="Start">
+        </form>
+    </center>
+    <br>
+</div>
+<div class="col-lg-offset-2 col-lg-8">
+    <video id="video" class="stream" autoplay></video>
+    <canvas id="overlay"></canvas>
+    <div class="person-details-overlay">
+      <div id="details">
+        <h2>Person Details</h2>
+        <p>Person Name: <span id="person_name"></span></p>
+        <p>Person Email: <span id="person_email"></span></p>
+        <p>Organization: <span id="organization"></span></p>
+        <p>Location: <span id="location"></span></p>
+        <p>Status: <span id="fugitive"></span></p>
+      </div>
+      <p id="no-people">No persons found in frame</p>
+    </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+
+<script>
+    const socket = io('http://{{api.get("host")}}:{{api.get("port")}}');
+
+    const cam = document.getElementById('video');
+    let frameInterval;
+    let lastUpdateTime = 0;
+
+
+    const deetOverlay = document.getElementById('details');
+
+    const overlay = document.getElementById('overlay');
+    const ctx = overlay.getContext('2d');
+
+    // Use getUserMedia to access the webcam
+    navigator.mediaDevices.getUserMedia({ video: true })
+        .then((stream) => {
+            cam.srcObject = stream;
+            cam.play();
+
+            // Send frames to server
+            const canvas = document.createElement('canvas');
+            const ctx2 = canvas.getContext('2d');
+            frameInterval = setInterval(() => {
+                canvas.width = cam.videoWidth;
+                canvas.height = cam.videoHeight;
+                ctx2.drawImage(cam, 0, 0, canvas.width, canvas.height);
+                const dataURI = canvas.toDataURL('image/jpeg', 0.5); // Compress image
+                socket.emit('image', dataURI);
+            }, 1000 / 20); // Adjusted frame rate to 20 fps
+        })
+        .catch((err) => {
+            console.error('Error accessing webcam:', err);
+        });
+
+    socket.on('response', function(response) {
+        const currentTime = Date.now();
+        if (currentTime - lastUpdateTime > 1000) {
+            displayRecognizedFaces(response);
+            lastUpdateTime = currentTime;
+        }
+    });
+
+    function displayRecognizedFaces(faces) {
+        const personNameElem = document.getElementById('person_name');
+        const personEmailElem = document.getElementById('person_email');
+        const locationElem = document.getElementById('location');
+        const orgElem = document.getElementById('organization');
+        const fugitiveElem = document.getElementById('fugitive');
+        const noPeopleElem = document.getElementById('no-people');
+
+        ctx.clearRect(0, 0, overlay.width, overlay.height);
+
+        if (faces.length > 0) {
+            noPeopleElem.style.display = 'none';
+            deetOverlay.style.display = 'block';
+
+            // Assuming only one face is processed at a time for simplicity
+            const face = faces[0];
+
+            ctx.strokeStyle = face.fugitive ? 'red' : 'green'; // Red for fugitive, green otherwise
+            ctx.lineWidth = 2;
+            ctx.strokeRect(face.pos_x/2, face.pos_y/4, face.pos_w/2, face.pos_h/2);
+            
+            personNameElem.textContent = face.id;
+            personEmailElem.textContent = face.email;
+            orgElem.textContent = face.organizations;
+            locationElem.textContent = `${face.city}, ${face.state}, ${face.pinCode}, ${face.country}`;
+            fugitiveElem.innerHTML = face.fugitive ? '<span style="color:red">Fugitive</span>' : '<span style="color:green">Not a Fugitive</span>';
+        } else {
+            noPeopleElem.style.display = 'block';
+            deetOverlay.style.display = 'none';
+            personNameElem.textContent = '';
+            personEmailElem.textContent = '';
+            locationElem.textContent = '';
+            fugitiveElem.textContent = '';
+        }
+    }
+
+    function stopStreamAndReleaseCamera() {
+        // Stop sending frames to the server
+        clearInterval(frameInterval);
+
+        // Stop the socket connection
+        socket.disconnect();
+
+        // Stop the camera stream
+        const tracks = cam.srcObject.getTracks();
+        tracks.forEach(track => track.stop());
+    }
+
+    // Adding event listener to stop the stream and release camera on window unload
+    window.addEventListener('unload', stopStreamAndReleaseCamera);
+</script>
+
+<!-- <script>
+    const socket = io('http://{{api.get("host")}}:{{api.get("port")}}');
+
+    const cam = document.getElementById('video');
+    let frameInterval;
+    let frameBuffer = [];
+    let isPlaying = false;
+    let lastBlobUrl;
+
+    // Use getUserMedia to access the webcam
+    navigator.mediaDevices.getUserMedia({ video: true })
+        .then((stream) => {
+            cam.srcObject = stream;
+            cam.play();
+
+            // Send frames to server
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            frameInterval = setInterval(() => {
+                canvas.width = cam.videoWidth;
+                canvas.height = cam.videoHeight;
+                ctx.drawImage(cam, 0, 0, canvas.width, canvas.height);
+                const dataURI = canvas.toDataURL('image/jpeg', 0.5); // Compress image
+                socket.emit('image', dataURI);
+            }, 1000 / 20); // Adjusted frame rate to 20 fps
+        })
+        .catch((err) => {
+            console.error('Error accessing webcam:', err);
+        });
+
+</script> -->
+</body>
+</html>
